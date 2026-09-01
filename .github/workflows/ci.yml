@@ -56,3 +56,61 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - run: npm test
+
+  deploy-backend:
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage deploy package
+        # Azure's Python runtime builds from the root of the deployed content,
+        # so requirements.txt and app/ need to sit there directly instead of
+        # inside backend/. alembic.ini and migrations/ ride along so
+        # startup.sh can run migrations before the app starts.
+        run: |
+          mkdir -p deploy_stage
+          cp -r backend/app deploy_stage/app
+          cp backend/requirements.txt deploy_stage/requirements.txt
+          cp -r migrations deploy_stage/migrations
+          cp alembic.ini deploy_stage/alembic.ini
+          cp backend/startup.sh deploy_stage/startup.sh
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: razorpay-recovery-api
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: deploy_stage
+
+  deploy-frontend:
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          GITHUB_PAGES_BASE: /razorpay/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

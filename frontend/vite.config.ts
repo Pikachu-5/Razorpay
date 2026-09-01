@@ -7,6 +7,10 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    // GitHub Pages project sites are served from /<repo-name>/, not /. Only
+    // set when building for that deploy target; local dev and other hosts
+    // keep the default root base.
+    base: env.GITHUB_PAGES_BASE ?? '/',
     plugins: [react()],
     server: {
       proxy: {

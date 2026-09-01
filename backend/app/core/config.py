@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://recovery:recovery@localhost:55432/recovery"
     )
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_asyncpg_driver(cls, value: str) -> str:
+        # Managed Postgres providers (Azure, Heroku, ...) hand out DATABASE_URL
+        # with a bare postgres(ql):// scheme, which SQLAlchemy's async engine
+        # can't use directly -- it needs the asyncpg driver named explicitly.
+        if value.startswith("postgres://"):
+            return "postgresql+asyncpg://" + value[len("postgres://") :]
+        if value.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+        return value
 
     # Where promoted model artifacts and their cards live. Empty means the
     # checked-in `models/artifacts` directory. Tests and deployments override it
@@ -47,6 +59,14 @@ class Settings(BaseSettings):
     # fail closed until an operator key is configured.
     control_plane_api_key: str = Field(default="")
     control_plane_admin_api_key: str = Field(default="")
+
+    # Comma-separated browser origins allowed to call this API cross-origin,
+    # e.g. the GitHub Pages URL the frontend is deployed to.
+    cors_allow_origins: str = Field(default="http://localhost:5173")
+
+    @property
+    def cors_allow_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
     policy_kill_switch: bool = Field(default=False)
     policy_max_amount_minor: int = Field(default=2_500_000)
