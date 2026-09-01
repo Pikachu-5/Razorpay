@@ -1,0 +1,25 @@
+[tool.ruff]
+# The backend had no linter at all while the frontend was linted in CI. These
+# rules are deliberately narrow: correctness and dead code, not style opinions.
+line-length = 110
+target-version = "py312"
+extend-exclude = [".venv", "migrations/versions", "**/__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "F",    # pyflakes: undefined names, unused imports and variables
+    "E9",   # syntax and IO errors
+    "B",    # bugbear: mutable defaults, silent except, loop-variable capture
+    "ASYNC",# blocking calls inside async functions
+    "I",    # import ordering
+]
+ignore = [
+    "B008",  # FastAPI's Depends() in defaults is the framework's idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private helpers deliberately to assert on internals.
+"backend/tests/*" = ["F811"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

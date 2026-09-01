@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+test-results/
+playwright-report/
+
+# README screenshots ARE checked in (docs/img). Regenerate them with
+# `npm run screenshots` from frontend/ after a UI change.
+
+# Working notes, AI session transcripts and superseded assets. Development
+# scratch, not part of the project, and `git add .` would otherwise publish it.
+.archive/
+*.session.md
+gpt.md.txt
+
+# Design handoff bundle exported from Claude Design. The design it describes is
+# implemented in frontend/; the bundle itself is source material, not source
+# code, and it carries its own vendored design-system copy.
+ai-revenue-recovery-webpage/
+
+# Output of the local critique tooling, not a project artifact.
+.impeccable/
+
+# Claude Code local session/config directory.
+.claude/
+
+# Data & artifacts
+*.log
+# Model artifacts are checked in so the demo runs from a clean clone, but only
+# the two the project ships -- not every experiment left in the directory.
+models/artifacts/*.pkl
+models/artifacts/*.json
+!models/artifacts/.gitkeep
+!models/artifacts/recovery_model_v1.pkl
+!models/artifacts/model_card_v1.json
+!models/artifacts/recovery_model_v2.pkl
+!models/artifacts/model_card_v2.json
+# PROMOTED.json is written by the promotion gate at runtime. It is intentionally
+# NOT checked in: a model earns production traffic by passing the gate on the
+# deploying machine, not by inheriting a pointer from the repository.
+models/artifacts/PROMOTED.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.pgdata/

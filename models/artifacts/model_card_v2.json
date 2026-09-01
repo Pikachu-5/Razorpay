@@ -1,0 +1,195 @@
+{
+  "version": "v2",
+  "artifact": "recovery_model_v2.pkl",
+  "model_type": "gbm",
+  "trained_at": "2026-08-31T13:22:02Z",
+  "data_dir": "data/synthetic",
+  "data_provenance": "synthetic",
+  "deployment_tier": "demo_only",
+  "action_quality": {
+    "prompt_card_change": {
+      "enabled": false,
+      "reasons": [
+        "test rows < 100",
+        "AUC < 0.55"
+      ],
+      "metrics": {
+        "n": 50,
+        "positive_rate": 0.56,
+        "roc_auc": 0.539,
+        "log_loss": 0.6926,
+        "brier": 0.2496,
+        "mean_predicted": 0.6335
+      }
+    },
+    "send_payment_link": {
+      "enabled": true,
+      "reasons": [],
+      "metrics": {
+        "n": 545,
+        "positive_rate": 0.6128,
+        "roc_auc": 0.6946,
+        "log_loss": 0.6143,
+        "brier": 0.213,
+        "mean_predicted": 0.6478
+      }
+    },
+    "send_reminder": {
+      "enabled": true,
+      "reasons": [],
+      "metrics": {
+        "n": 299,
+        "positive_rate": 0.709,
+        "roc_auc": 0.6441,
+        "log_loss": 0.5827,
+        "brier": 0.1975,
+        "mean_predicted": 0.6603
+      }
+    },
+    "wait_for_native_retry": {
+      "enabled": false,
+      "reasons": [
+        "AUC < 0.55"
+      ],
+      "metrics": {
+        "n": 146,
+        "positive_rate": 0.4315,
+        "roc_auc": 0.5496,
+        "log_loss": 0.6936,
+        "brier": 0.2499,
+        "mean_predicted": 0.3512
+      }
+    }
+  },
+  "rows_train_val_test": [
+    3118,
+    1039,
+    1040
+  ],
+  "per_action": {
+    "validation": {
+      "prompt_card_change": {
+        "n": 46,
+        "positive_rate": 0.6087,
+        "roc_auc": 0.4643,
+        "log_loss": 0.6786,
+        "brier": 0.2423,
+        "mean_predicted": 0.635
+      },
+      "send_payment_link": {
+        "n": 515,
+        "positive_rate": 0.6369,
+        "roc_auc": 0.6875,
+        "log_loss": 0.605,
+        "brier": 0.21,
+        "mean_predicted": 0.6505
+      },
+      "send_reminder": {
+        "n": 311,
+        "positive_rate": 0.6849,
+        "roc_auc": 0.6851,
+        "log_loss": 0.5855,
+        "brier": 0.1995,
+        "mean_predicted": 0.6575
+      },
+      "wait_for_native_retry": {
+        "n": 167,
+        "positive_rate": 0.3952,
+        "roc_auc": 0.5053,
+        "log_loss": 0.6776,
+        "brier": 0.242,
+        "mean_predicted": 0.3505
+      }
+    },
+    "test": {
+      "prompt_card_change": {
+        "n": 50,
+        "positive_rate": 0.56,
+        "roc_auc": 0.539,
+        "log_loss": 0.6926,
+        "brier": 0.2496,
+        "mean_predicted": 0.6335
+      },
+      "send_payment_link": {
+        "n": 545,
+        "positive_rate": 0.6128,
+        "roc_auc": 0.6946,
+        "log_loss": 0.6143,
+        "brier": 0.213,
+        "mean_predicted": 0.6478
+      },
+      "send_reminder": {
+        "n": 299,
+        "positive_rate": 0.709,
+        "roc_auc": 0.6441,
+        "log_loss": 0.5827,
+        "brier": 0.1975,
+        "mean_predicted": 0.6603
+      },
+      "wait_for_native_retry": {
+        "n": 146,
+        "positive_rate": 0.4315,
+        "roc_auc": 0.5496,
+        "log_loss": 0.6936,
+        "brier": 0.2499,
+        "mean_predicted": 0.3512
+      }
+    }
+  },
+  "economics_test": {
+    "opportunities_scored": 545,
+    "universe": 545,
+    "budget_fraction": 0.35,
+    "budget_k": 190,
+    "objective": "net incremental recovery (realized minus expected natural, minus cost)",
+    "arms": {
+      "model_policy": {
+        "recovered_minor": 238820922,
+        "expected_natural_recovery_minor": 137376094,
+        "incremental_recovery_minor": 101444827,
+        "intervention_cost_minor": 285000,
+        "net_incremental_minor": 101159827,
+        "selection": "rank by incremental expected value, net of cost"
+      },
+      "value_ranked_link": {
+        "recovered_minor": 231991298,
+        "expected_natural_recovery_minor": 145805925,
+        "incremental_recovery_minor": 86185372,
+        "intervention_cost_minor": 285000,
+        "net_incremental_minor": 85900372,
+        "selection": "rank by amount, always send a link (uses no model)"
+      },
+      "random_link": {
+        "recovered_minor": 119869837,
+        "expected_natural_recovery_minor": 71823714,
+        "incremental_recovery_minor": 48046121,
+        "intervention_cost_minor": 285000,
+        "net_incremental_minor": 47761121,
+        "selection": "uniform random, always send a link (mean of 25 draws)"
+      }
+    },
+    "lift_pct": 17.76,
+    "lift_vs_value_ranked_pct": 17.76,
+    "lift_vs_random_pct": 111.8,
+    "gross_recovered_minor": {
+      "model_policy": 238820922,
+      "value_ranked_link": 231991298,
+      "random_link": 119869837
+    },
+    "unobservable_choices": 0,
+    "caveats": [
+      "Offline replay: only actions with an observed outcome for that opportunity can be graded, so the model is restricted to those.",
+      "Incremental recovery uses an ESTIMATED natural-recovery baseline, not an observed counterfactual.",
+      "The training population was intervened on and is not a random sample; the live treatment/control holdout is the unbiased estimate of lift."
+    ]
+  },
+  "natural_recovery_baseline": {
+    "unknown": 0.3491,
+    "auth": 0.3029,
+    "instrument": 0.2058,
+    "insufficient_funds": 0.3109,
+    "temporary": 0.4523
+  },
+  "natural_recovery_baseline_source": "measured:8468_rows",
+  "natural_recovery_baseline_rows": 8468
+}

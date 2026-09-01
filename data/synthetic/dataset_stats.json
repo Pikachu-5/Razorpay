@@ -1,0 +1,10 @@
+{
+  "seed": 42,
+  "customers": 8000,
+  "attempts": 120000,
+  "failures": 18688,
+  "opportunities": 18688,
+  "interventions": 4632,
+  "natural_recovery_rate_opps_natural_only": 0.3497,
+  "intervention_success_rate": 0.6129
+}
