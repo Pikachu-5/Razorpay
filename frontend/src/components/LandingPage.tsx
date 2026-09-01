@@ -15,6 +15,8 @@ import type {
   PolicyConfig,
 } from "../api/types";
 import { inr } from "../utils/format";
+import { getMaintenanceStatus } from "../utils/maintenanceWindow";
+import { MaintenanceBanner } from "./MaintenanceBanner";
 
 interface LandingPageProps {
   onStart: () => void;
@@ -166,8 +168,15 @@ export function LandingPage({ onStart }: LandingPageProps) {
   // Widened explicitly: `MARKET` is `as const`, so the default narrows to the
   // literal 6 and the slider could never set anything else.
   const [failRate, setFailRate] = useState<number>(MARKET.failureRateDefault);
+  const [maintenance, setMaintenance] = useState(() => getMaintenanceStatus());
+
+  useEffect(() => {
+    const interval = setInterval(() => setMaintenance(getMaintenanceStatus()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const load = useCallback(async () => {
+    if (getMaintenanceStatus().isDown) return;
     const [m, p, f, e, c] = await Promise.allSettled([
       fetchOperatingMode(),
       fetchPolicyConfig(),
@@ -246,6 +255,11 @@ export function LandingPage({ onStart }: LandingPageProps) {
         </nav>
         <span className="tag tag-accent-2">Buildathon · revenue recovery</span>
       </header>
+      {maintenance.isDown && (
+        <div className="lp-maintenance-wrap">
+          <MaintenanceBanner message={maintenance.message} />
+        </div>
+      )}
 
       <section className="lp-hero" id="top">
         <div className="lp-hero-copy">

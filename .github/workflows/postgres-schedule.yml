@@ -1,0 +1,61 @@
+name: Postgres nightly schedule
+
+# Cost-saving stop/start cycle for the Postgres server, mirrored client-side
+# by frontend/src/utils/maintenanceWindow.ts -- keep both in sync manually if
+# this schedule ever changes.
+#
+# - Outside 2026-09-04..2026-09-25 (IST): stop nightly at 22:00 IST, start at
+#   07:00 IST.
+# - Inside that window (buildathon submission + judging): stays up, no stops.
+# - From 2026-09-26 (IST) onward: stopped permanently, no more auto-starts.
+
+on:
+  schedule:
+    - cron: "30 16 * * *" # 22:00 IST daily -- stop
+    - cron: "30 1 * * *" # 07:00 IST daily -- start
+  workflow_dispatch: {}
+
+jobs:
+  stop:
+    if: github.event.schedule == '30 16 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Stop Postgres unless inside the critical uptime window
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          if [[ "$TODAY" > "2026-09-03" && "$TODAY" < "2026-09-26" ]]; then
+            echo "Inside critical window ($TODAY) -- staying up, skipping stop."
+          else
+            echo "Outside critical window ($TODAY) -- stopping Postgres."
+            az postgres flexible-server stop --resource-group rg-razorpay-recovery --name razorpay-recovery-db
+          fi
+
+  start:
+    if: github.event.schedule == '30 1 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Start Postgres unless the demo window has permanently ended
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          if [[ "$TODAY" > "2026-09-25" ]]; then
+            echo "Demo window ended ($TODAY) -- leaving Postgres stopped."
+          else
+            echo "Starting Postgres ($TODAY)."
+            az postgres flexible-server start --resource-group rg-razorpay-recovery --name razorpay-recovery-db
+          fi

@@ -5,6 +5,7 @@ import type { FeedItem, PolicyConfig, RazorpayState, Summary } from "./api/types
 import { Header, type TabKey } from "./components/Header";
 import { KpiStrip } from "./components/KpiStrip";
 import { LandingPage } from "./components/LandingPage";
+import { MaintenanceBanner } from "./components/MaintenanceBanner";
 import { OpportunityModal } from "./components/OpportunityModal";
 import { GovernanceTab } from "./components/tabs/GovernanceTab";
 import { IncidentsTab } from "./components/tabs/IncidentsTab";
@@ -14,6 +15,7 @@ import { RazorpayTab } from "./components/tabs/RazorpayTab";
 import { SimulationTab } from "./components/tabs/SimulationTab";
 import { Icon } from "./components/Icon";
 import { inr } from "./utils/format";
+import { getMaintenanceStatus } from "./utils/maintenanceWindow";
 
 const POLL_MS = 8000;
 const REFRESH_THROTTLE_MS = 1500;
@@ -71,8 +73,16 @@ export default function App() {
   const [, setSyntheticDecided] = useState(false);
   const [policy, setPolicy] = useState<PolicyConfig | null>(null);
   const [queueDepth, setQueueDepth] = useState<number | null>(null);
+  const [maintenance, setMaintenance] = useState(() => getMaintenanceStatus());
+
+  useEffect(() => {
+    const check = () => setMaintenance(getMaintenanceStatus());
+    const interval = setInterval(check, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const refresh = useCallback(async () => {
+    if (getMaintenanceStatus().isDown) return;
     setIsRefreshing(true);
     const [summaryResult, stateResult] = await Promise.allSettled([
       fetchSummary(includeSynthetic),
@@ -103,14 +113,16 @@ export default function App() {
   }, [includeSynthetic]);
 
   useEffect(() => {
+    if (maintenance.isDown) return;
     fetchPolicyConfig().then(setPolicy).catch(() => setPolicy(null));
-  }, []);
+  }, [maintenance.isDown]);
 
   useEffect(() => {
+    if (maintenance.isDown) return;
     fetchOpportunityQueue(200)
       .then((rows) => setQueueDepth(rows.length))
       .catch(() => setQueueDepth(null));
-  }, [refreshSignal]);
+  }, [refreshSignal, maintenance.isDown]);
 
   const manualRefresh = useCallback(() => {
     setManualRefreshKey((prev) => prev + 1);
@@ -154,9 +166,10 @@ export default function App() {
         contactCap={policy?.max_contact_attempts ?? null}
       />
       <main className="main-content">
+        {maintenance.isDown && <MaintenanceBanner message={maintenance.message} />}
         {/* Monitor keeps the full masthead; every inner page compresses to a
             single utility bar so the operator reaches data faster. */}
-        {isMonitor ? (
+        {maintenance.isDown ? null : isMonitor ? (
           <>
             <div className="workspace-bar">
               <div className="breadcrumb"><span>Recovery operations</span><span className="breadcrumb-sep" aria-hidden="true" /><strong>{page.title}</strong></div>
@@ -183,8 +196,8 @@ export default function App() {
             </div>
           </header>
         )}
-        {refreshError && <div className="app-alert" role="status"><div><strong>Data needs attention</strong><span className="app-alert-detail">{refreshError}</span></div><button type="button" className="btn btn-secondary btn-sm" onClick={manualRefresh} disabled={isRefreshing}>Try again</button></div>}
-        {isMonitor && (
+        {!maintenance.isDown && refreshError && <div className="app-alert" role="status"><div><strong>Data needs attention</strong><span className="app-alert-detail">{refreshError}</span></div><button type="button" className="btn btn-secondary btn-sm" onClick={manualRefresh} disabled={isRefreshing}>Try again</button></div>}
+        {!maintenance.isDown && isMonitor && (
           <KpiStrip
             summary={summary}
             refreshKey={manualRefreshKey}
@@ -192,7 +205,7 @@ export default function App() {
             onToggleSynthetic={setIncludeSynthetic}
           />
         )}
-        <div className="tab-content-wrapper">
+        <div className="tab-content-wrapper" hidden={maintenance.isDown}>
           {activeTab === "overview" && <OverviewTab summary={summary} feed={feed} onClearFeed={() => setFeed([])} onSelectOpportunity={setSelectedOpportunityId} />}
           {activeTab === "opportunities" && <OpportunitiesTab onSelectOpportunity={setSelectedOpportunityId} refreshSignal={refreshSignal} />}
           {activeTab === "razorpay" && <RazorpayTab state={razorpayState} onRefresh={refresh} />}
