@@ -34,7 +34,8 @@ jobs:
       - name: Lint
         run: python -m ruff check ../backend ../training ../scripts
       - name: Migrations apply cleanly from an empty database
-        run: python -m alembic -c ../alembic.ini upgrade head
+        working-directory: .
+        run: python -m alembic -c alembic.ini upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://recovery:recovery@localhost:55432/recovery
       - run: python -m pytest -q
