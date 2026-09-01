@@ -14,13 +14,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from seed_demo_baseline import run_decisions, replay_recoveries  # noqa: E402
+from seed_demo_baseline import replay_recoveries, run_decisions  # noqa: E402
 
 
 async def main() -> None:
     from sqlalchemy import select
 
-    from app.database.models import Payment, Opportunity
+    from app.database.models import Opportunity, Payment
     from app.database.session import session_factory
 
     async with session_factory() as session:
