@@ -240,6 +240,9 @@ export function LandingPage({ onStart }: LandingPageProps) {
           <a href="#mix">Failure mix</a>
           <a href="#worth">What it's worth</a>
           <a href="#evidence">Evidence</a>
+          <a href="https://github.com/Pikachu-5/razorpay" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
         </nav>
         <span className="tag tag-accent-2">Buildathon · revenue recovery</span>
       </header>
