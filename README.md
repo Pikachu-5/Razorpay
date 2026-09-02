@@ -113,10 +113,68 @@ The dashboard is intentionally frictionless only while `APP_ENV=dev` (or
 `test`/`local`) and no control-plane key is configured. For any other
 environment, set `CONTROL_PLANE_API_KEY` and send it on every state-changing
 operator request in `X-Control-Plane-Key`. Simulation start/stop, anomaly scan,
-incident response, manual re-decide, and model promotion are protected. Set a
-separate `CONTROL_PLANE_ADMIN_API_KEY` to restrict `force: true` model promotion
-to an administrator. Razorpay webhooks remain authenticated by their signature,
-not this header.
+incident response, manual re-decide, shadow-mode changes, reconciliation, and
+model promotion are protected. Set a separate `CONTROL_PLANE_ADMIN_API_KEY` to
+restrict `force: true` model promotion to an administrator. Razorpay webhooks
+remain authenticated by their signature, not this header.
+
+`APP_ENV` defaults to `production`, not `dev`. That is deliberate: the
+dev/test/local values skip authentication entirely, and a deployment that
+simply never sets the variable must not inherit the convenient default. The
+checked-in `.env.example` sets `dev` explicitly for local work.
+
+The console never holds the operator key at build time. Vite inlines
+build-time values into the public JavaScript bundle, so an earlier
+`VITE_CONTROL_PLANE_KEY` would have published the key to every visitor of the
+GitHub Pages install. The key is supplied per browser tab instead:
+
+```js
+sessionStorage.setItem('recover_control_plane_key', '<key>')
+```
+
+**The public demo install is an exception, and says so.** Setting
+`CONTROL_PLANE_OPEN_DEMO=true` leaves operator actions unauthenticated on
+purpose, so a reviewer can drive the console — arm live execution, run a
+simulation, dispatch a batch — without credentials. It is a declared posture
+rather than an unset variable: it is refused unless `RAZORPAY_MODE=test`, it
+grants the operator role but never admin (so forced model promotion still needs
+a key), the process warns about it at startup, and the console sidebar shows an
+**Open demo · no key** badge. Any install that is not a throwaway demo leaves it
+`false`.
+
+### What the public demo is allowed to do
+
+Open access is bounded rather than unconditional. The bounds exist because a
+shared install has to survive strangers, and they are stated here because a
+limit nobody can see is indistinguishable from a bug:
+
+- **Two actions stay behind a key even in an open demo.** Model promotion
+  rewrites the promotion pointer, which governs every later decision for every
+  visitor, not just the caller. Reconciliation spends the merchant's real
+  Razorpay API quota. Both reach outside the demo's own data, so both return
+  403. Everything else — simulation, anomaly scan, batch response, re-decide,
+  arming execution — stays open.
+- **A run is capped at ~300 synthetic payments** (150/min for 120s, against
+  600/min for 900s locally). The console's own presets top out at 90 payments,
+  so a visitor never meets the ceiling; only abuse does.
+- **A global ceiling** refuses new runs past `DEMO_MAX_SYNTHETIC_PAYMENTS`.
+  Per-run caps bound each run; only this bounds the total.
+- **A global cooldown** paces runs, rather than a per-IP limit. Only one
+  simulation can run at a time in the first place, so the contended resource is
+  already global — and unlike a per-IP counter, a global one cannot be evaded by
+  arriving from another address, nor spoofed through a forwarded-for header that
+  Azure App Service appends to rather than replaces.
+
+Every one of these applies only while the open-demo flag is set. A local install
+runs unrationed.
+
+One limitation worth stating rather than hiding: the shadow-mode override is
+process-local, which is correct only because the deployed install runs a single
+uvicorn worker ([`backend/startup.sh`](backend/startup.sh)). Running multiple
+workers or App Service instances would let them disagree about the execution
+mode, so that change has to come with a durable shared store for the override.
+`/api/policy/operating-mode` reports `shadow_mode_scope` so no caller has to
+infer it.
 
 The autonomous monitor uses Postgres-backed webhook claims, durable monitor
 events, and transaction-scoped advisory locks so multiple API replicas do not

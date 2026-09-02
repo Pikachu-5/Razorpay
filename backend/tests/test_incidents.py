@@ -1,10 +1,12 @@
 import asyncio
+import time
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.database.models import Incident, Opportunity, Payment
 from app.database.session import session_factory
 from app.events.processor import process_payment_event
@@ -137,3 +139,78 @@ async def test_incident_response_only_considers_the_affected_bank(monkeypatch):
     monkeypatch.setattr(incidents_module, "decide_opportunity", fake_decide)
     await incidents_module.respond_to_incident(incident_id)
     assert considered == [hdfc_opp_id]
+
+
+def test_open_demo_clamps_simulation_size(monkeypatch):
+    """A public visitor gets tighter ceilings than a local operator."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", True)
+    monkeypatch.setattr(settings, "razorpay_mode", "test")
+
+    s = SimulationConfig(payments_per_minute=600, duration_seconds=900).sanitized()
+    assert s.payments_per_minute == settings.demo_max_payments_per_minute
+    assert s.duration_seconds == settings.demo_max_duration_seconds
+    # The bound that matters: total synthetic volume per run.
+    assert s.payments_per_minute * s.duration_seconds / 60 <= 300
+
+
+def test_console_presets_are_unaffected_by_the_demo_clamp(monkeypatch):
+    """The limits must bite abuse only -- never ordinary use.
+
+    The console's largest preset is 120/min for 60s. If a clamp changed that,
+    a judge would silently get a different scenario than the card described.
+    """
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", True)
+    monkeypatch.setattr(settings, "razorpay_mode", "test")
+
+    for rate, duration in [(90, 60), (60, 60), (120, 45), (80, 60)]:
+        s = SimulationConfig(payments_per_minute=rate, duration_seconds=duration).sanitized()
+        assert (s.payments_per_minute, s.duration_seconds) == (rate, duration)
+
+
+def test_local_install_is_not_clamped(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", False)
+
+    s = SimulationConfig(payments_per_minute=600, duration_seconds=900).sanitized()
+    assert s.payments_per_minute == 600
+    assert s.duration_seconds == 900
+
+
+@pytest.mark.asyncio
+async def test_open_demo_refuses_once_synthetic_ceiling_is_reached(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", True)
+    monkeypatch.setattr(settings, "razorpay_mode", "test")
+    monkeypatch.setattr(settings, "demo_max_synthetic_payments", 1)
+    monkeypatch.setattr(settings, "demo_simulation_cooldown_seconds", 0)
+    monkeypatch.setattr(engine, "_synthetic_payment_count", lambda: _select(5000))
+
+    result = await start_simulation(SimulationConfig(duration_seconds=30))
+    assert result["started"] is False
+    assert "capacity" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_open_demo_paces_runs_with_a_global_cooldown(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", True)
+    monkeypatch.setattr(settings, "razorpay_mode", "test")
+    monkeypatch.setattr(settings, "demo_simulation_cooldown_seconds", 30)
+    monkeypatch.setattr(engine, "_last_finished_at", time.time())
+
+    result = await start_simulation(SimulationConfig(duration_seconds=30))
+    assert result["started"] is False
+    assert "cooldown" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_local_install_has_no_cooldown_or_ceiling(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "control_plane_open_demo", False)
+    monkeypatch.setattr(engine, "_last_finished_at", time.time())
+
+    result = await start_simulation(SimulationConfig(duration_seconds=30))
+    assert result["started"] is True
+    await stop_simulation()

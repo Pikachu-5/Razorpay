@@ -10,9 +10,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.agents.verification import verify_payment_link_paid
+from app.core.config import get_settings
 from app.core.locks import run_with_singleton_lock
 from app.database.models import InterventionRecord, Opportunity, Payment
 from app.database.session import session_factory
@@ -135,10 +136,20 @@ class SimulationConfig:
     recovery_rate_control: float = 0.0
 
     def sanitized(self) -> "SimulationConfig":
+        settings = get_settings()
+        # A public demo gets tighter ceilings than an operator running this
+        # locally. Clamped here rather than in the request model or the form,
+        # because this is the only path every caller goes through.
+        max_rate = 600
+        max_duration = 900
+        if settings.open_demo_active:
+            max_rate = min(max_rate, settings.demo_max_payments_per_minute)
+            max_duration = min(max_duration, settings.demo_max_duration_seconds)
+
         cfg = SimulationConfig(**self.__dict__)
         cfg.failure_rate = min(0.95, max(0.0, self.failure_rate))
-        cfg.payments_per_minute = max(10, min(600, self.payments_per_minute))
-        cfg.duration_seconds = max(30, min(900, self.duration_seconds))
+        cfg.payments_per_minute = max(10, min(max_rate, self.payments_per_minute))
+        cfg.duration_seconds = max(30, min(max_duration, self.duration_seconds))
         cfg.subscription_share = min(0.8, max(0.0, self.subscription_share))
         cfg.recovery_rate_treatment = min(0.95, max(0.0, self.recovery_rate_treatment))
         cfg.recovery_rate_control = min(0.95, max(0.0, self.recovery_rate_control))
@@ -161,6 +172,9 @@ class SimulationState:
 
 
 _state: SimulationState | None = None
+# When the last run ended, for the open-demo cooldown. Process-local, which is
+# the right scope: a simulation is process-local too.
+_last_finished_at: float | None = None
 
 
 def simulation_status() -> dict[str, Any]:
@@ -189,6 +203,7 @@ def simulation_status() -> dict[str, Any]:
 
 
 async def _run_simulation(state: SimulationState) -> None:
+    global _last_finished_at
     rng = random.Random(state.config.seed)
     payments_per_tick = state.config.payments_per_minute * TICK_SECONDS / 60.0
     payment_credit = 0.0
@@ -271,6 +286,9 @@ async def _run_simulation(state: SimulationState) -> None:
     finally:
         if state.status != "failed":
             state.status = "stopped"
+        # Set before the settlement work below, so the cooldown is measured from
+        # when traffic stopped rather than from when bookkeeping finished.
+        _last_finished_at = time.time()
         try:
             await run_with_singleton_lock("recovery-incident-detector", detector_cycle)
         except Exception:
@@ -287,10 +305,56 @@ async def _run_simulation(state: SimulationState) -> None:
         )
 
 
+async def _synthetic_payment_count() -> int:
+    async with session_factory() as session:
+        return int(
+            (
+                await session.execute(
+                    select(func.count()).select_from(Payment).where(Payment.is_synthetic.is_(True))
+                )
+            ).scalar_one()
+        )
+
+
+async def _demo_admission_refusal() -> str | None:
+    """Why a public visitor may not start a run right now, or None to allow it.
+
+    Only applies to an open demo. An operator on their own install is not
+    rationed. Both limits are stated in the refusal so the console can render
+    something better than a generic failure.
+    """
+    settings = get_settings()
+    if not settings.open_demo_active:
+        return None
+
+    cooldown = settings.demo_simulation_cooldown_seconds
+    if cooldown > 0 and _last_finished_at is not None:
+        waited = time.time() - _last_finished_at
+        if waited < cooldown:
+            return (
+                f"demo cooldown: another run may start in {cooldown - waited:.0f}s "
+                "(the public demo paces runs so the install stays responsive)"
+            )
+
+    ceiling = settings.demo_max_synthetic_payments
+    if ceiling > 0:
+        existing = await _synthetic_payment_count()
+        if existing >= ceiling:
+            return (
+                f"demo capacity reached: {existing:,} synthetic payments already stored "
+                f"(ceiling {ceiling:,}). Clone the repo to run without this limit."
+            )
+    return None
+
+
 async def start_simulation(config: SimulationConfig) -> dict[str, Any]:
     global _state
     if _state is not None and _state.status == "running":
         return {"started": False, "reason": "simulation already running", "status": simulation_status()}
+
+    refusal = await _demo_admission_refusal()
+    if refusal is not None:
+        return {"started": False, "reason": refusal, "status": simulation_status()}
 
     try:
         cfg = config.sanitized()

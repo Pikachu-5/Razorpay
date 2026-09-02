@@ -31,7 +31,13 @@ class ShadowModeRequest(BaseModel):
     enabled: bool
 
 
-def _operating_mode() -> dict[str, Any]:
+def operating_mode_payload() -> dict[str, Any]:
+    """The one description of how this install is running.
+
+    Exported because `/api/razorpay/state` embeds the same block; it used to
+    build its own two-field copy, which silently drifted out of date whenever
+    this one gained a field.
+    """
     settings = get_settings()
     return {
         "shadow_mode": settings.shadow_mode,
@@ -40,12 +46,24 @@ def _operating_mode() -> dict[str, Any]:
         "simulate_interventions": settings.simulate_interventions,
         # The only combination that can contact a real customer.
         "customer_side_effects_enabled": settings.razorpay_configured and not settings.shadow_mode,
+        # Whether operator actions on this install are authenticated at all, and
+        # if not, whether that is a declared demo posture or local development.
+        # The console badges this rather than letting a reviewer assume the
+        # buttons are protected.
+        "control_plane_authenticated": bool(settings.control_plane_api_key),
+        "control_plane_open_demo": settings.open_demo_active,
+        # `shadow_mode` is a process-local override (see `set_shadow_mode`), so
+        # this answer describes the worker that served the request. The deployed
+        # install runs a single uvicorn worker, which is what makes that safe;
+        # scaling out horizontally would need the override moved to durable
+        # storage before this field could speak for the whole install.
+        "shadow_mode_scope": "process",
     }
 
 
 @router.get("/operating-mode")
 async def operating_mode() -> dict[str, Any]:
-    return _operating_mode()
+    return operating_mode_payload()
 
 
 @router.post("/shadow-mode")
@@ -57,6 +75,13 @@ async def set_shadow_mode(
     Deliberately NOT written back to `.env`: a restart always returns to the
     checked-in default, so an operator can never leave live execution armed by
     forgetting to switch it back.
+
+    The override is process-local, which is only correct because the deployed
+    install runs a single uvicorn worker (`backend/startup.sh`). Running more
+    than one worker or App Service instance would let workers disagree about
+    the execution mode, so that change has to come with a durable, shared store
+    for the override. `/api/policy/operating-mode` reports `shadow_mode_scope`
+    so no caller has to infer this.
     """
     settings = get_settings()
 
@@ -81,4 +106,4 @@ async def set_shadow_mode(
         "ENABLED" if req.enabled else "DISABLED",
         "blocked" if req.enabled else "ARMED for real payments",
     )
-    return {"updated": True, **_operating_mode()}
+    return {"updated": True, **operating_mode_payload()}

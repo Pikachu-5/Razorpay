@@ -27,8 +27,34 @@ from app.simulation.incidents import detector_cycle
 logger = logging.getLogger("lifespan")
 
 
+def _announce_control_plane_posture(settings) -> None:
+    """Say out loud, once, whether operator actions are authenticated.
+
+    An unauthenticated control plane is a legitimate posture for a public
+    demonstration and an incident in any other context. The difference is only
+    ever visible if the process states which one it believes it is running.
+    """
+    if settings.control_plane_api_key:
+        logger.info("control plane: authenticated (X-Control-Plane-Key required)")
+    elif settings.is_local_env:
+        logger.info("control plane: OPEN (APP_ENV=%s local development)", settings.app_env)
+    elif settings.open_demo_active:
+        logger.warning(
+            "control plane: OPEN DEMO -- operator actions are UNAUTHENTICATED. "
+            "Razorpay mode is '%s' and forced model promotion still requires an "
+            "admin key. Unset CONTROL_PLANE_OPEN_DEMO for any non-demo install.",
+            settings.razorpay_mode,
+        )
+    else:
+        logger.error(
+            "control plane: NO KEY CONFIGURED -- every operator action will fail "
+            "closed with 503 until CONTROL_PLANE_API_KEY is set"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _announce_control_plane_posture(get_settings())
     await ensure_runtime_schema()
     consumer = start_consumer_task()
     sweeper = start_sweeper_task()

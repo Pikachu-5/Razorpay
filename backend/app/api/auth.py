@@ -37,7 +37,12 @@ async def require_operator(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="CONTROL_PLANE_API_KEY must be configured outside dev/test/local",
             )
-        return OperatorPrincipal(role="admin", identity="local-demo")
+        if settings.is_local_env:
+            return OperatorPrincipal(role="admin", identity="local-demo")
+        # An open demo is deliberately unauthenticated, but it is not trusted:
+        # it gets the operator role only, so `force: true` model promotion
+        # still requires a separately configured admin key.
+        return OperatorPrincipal(role="operator", identity="open-demo")
 
     is_operator_key = bool(x_control_plane_key) and compare_digest(
         x_control_plane_key, settings.control_plane_api_key
@@ -52,12 +57,38 @@ async def require_operator(
     return OperatorPrincipal(role="operator", identity="control-plane-operator")
 
 
+async def require_keyed_operator(
+    x_control_plane_key: str | None = Header(default=None),
+) -> OperatorPrincipal:
+    """An operator, but never an anonymous visitor to an open demo.
+
+    Most operator actions on a public demo are self-contained: they write
+    clearly-labelled synthetic rows and nothing else. Two are not, and they are
+    the ones this guards.
+
+    * Model promotion rewrites the promotion pointer on disk and changes every
+      subsequent decision for every visitor, not just the one who clicked.
+    * Reconciliation spends the merchant's real Razorpay API quota.
+
+    Both reach outside the sandbox the demo is allowed to play in, so they stay
+    behind a key even while the rest of the console is open.
+    """
+    principal = await require_operator(x_control_plane_key)
+    if principal.identity == "open-demo":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="this action is not available on the public demo; it requires an operator key",
+        )
+    return principal
+
+
 async def require_admin(
     x_control_plane_key: str | None = Header(default=None),
 ) -> OperatorPrincipal:
     principal = await require_operator(x_control_plane_key)
     # Local demo has an explicit, documented implicit admin. In deployed
-    # environments force-promotion requires a separate privileged key.
+    # environments -- open demo included -- force-promotion requires a separate
+    # privileged key.
     if principal.role == "admin":
         return principal
     raise HTTPException(

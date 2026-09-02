@@ -9,6 +9,30 @@ interface OverviewTabProps {
   onSelectOpportunity?: (id: string) => void;
 }
 
+/**
+ * Which event kinds each filter covers, named explicitly.
+ *
+ * This was a substring test against the kind, which quietly made "Decisions &
+ * Policy" mean `decision.*` alone -- so choosing it hid `diagnosis.completed`,
+ * `prediction.completed` and `policy.evaluated`, i.e. every step that explains
+ * the decision, leaving only the verdict. The filter that exists to show the
+ * reasoning was the one filter that removed it.
+ */
+const FILTER_KINDS: Record<string, readonly string[]> = {
+  opportunity: ["opportunity.created", "opportunity.expired", "opportunity.resolved"],
+  incident: ["incident.detected", "incident.response", "incident.resolved"],
+  decision: [
+    "diagnosis.completed",
+    "prediction.completed",
+    "policy.evaluated",
+    "decision.finalized",
+    "decision.failed",
+  ],
+  payment: ["payment.recorded", "payment.updated"],
+  razorpay: ["razorpay.event"],
+  verification: ["verification.completed"],
+};
+
 export function OverviewTab({
   feed,
   onClearFeed,
@@ -19,7 +43,7 @@ export function OverviewTab({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const filteredFeed = feed.filter((item) => {
-    if (filterKind !== "all" && !item.kind.includes(filterKind)) return false;
+    if (filterKind !== "all" && !FILTER_KINDS[filterKind]?.includes(item.kind)) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const match =
@@ -53,7 +77,7 @@ export function OverviewTab({
               <option value="all">All Events</option>
               <option value="opportunity">Opportunities</option>
               <option value="incident">Incidents</option>
-              <option value="decision">Decisions & Policy</option>
+              <option value="decision">Decision chain</option>
               <option value="payment">Payments</option>
               <option value="razorpay">Webhooks</option>
               <option value="verification">Verification</option>

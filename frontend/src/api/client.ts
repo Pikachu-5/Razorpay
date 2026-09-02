@@ -14,18 +14,64 @@ import type {
 } from "./types";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const CONTROL_PLANE_KEY = import.meta.env.VITE_CONTROL_PLANE_KEY ?? "";
+
+/**
+ * The operator key is supplied at *runtime* and held only for this browser tab.
+ *
+ * It used to be read from `import.meta.env.VITE_CONTROL_PLANE_KEY`, which Vite
+ * inlines as a string literal at build time -- so any deployment that set it
+ * shipped the control-plane key inside a public JavaScript bundle, readable by
+ * every visitor. A key that authenticates operator actions cannot survive being
+ * compiled into the client, so it is no longer read from the build at all.
+ *
+ * `sessionStorage` keeps it out of the bundle, out of the URL, and out of the
+ * profile once the tab closes.
+ */
+const KEY_STORAGE = "recover_control_plane_key";
+
+export function getControlPlaneKey(): string {
+  try {
+    return sessionStorage.getItem(KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setControlPlaneKey(key: string): void {
+  try {
+    if (key) sessionStorage.setItem(KEY_STORAGE, key);
+    else sessionStorage.removeItem(KEY_STORAGE);
+  } catch {
+    // Private browsing or storage disabled: the operator re-enters the key on
+    // the next action rather than the console failing outright.
+  }
+}
 
 function mutationHeaders(json: boolean = false): HeadersInit {
+  const key = getControlPlaneKey();
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(CONTROL_PLANE_KEY ? { "X-Control-Plane-Key": CONTROL_PLANE_KEY } : {}),
+    ...(key ? { "X-Control-Plane-Key": key } : {}),
   };
+}
+
+/** Raised when the control plane wants an operator key this session lacks. */
+export class ControlPlaneAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ControlPlaneAuthError";
+  }
 }
 
 async function handleRes<T>(res: Response, name: string): Promise<T> {
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
+    if (res.status === 401 || res.status === 503) {
+      throw new ControlPlaneAuthError(
+        "This install requires an operator key. Add it with " +
+          "sessionStorage.setItem('recover_control_plane_key', '<key>') and retry.",
+      );
+    }
     throw new Error(`${name} failed (${res.status}): ${errorText || res.statusText}`);
   }
   return res.json();

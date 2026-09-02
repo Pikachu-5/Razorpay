@@ -361,4 +361,10 @@ export interface OperatingMode {
   razorpay_configured: boolean;
   simulate_interventions: boolean;
   customer_side_effects_enabled: boolean;
+  /** False when operator actions on this install need no key at all. */
+  control_plane_authenticated?: boolean;
+  /** A declared public demo: unauthenticated on purpose, and badged as such. */
+  control_plane_open_demo?: boolean;
+  /** "process" while the shadow-mode override is not shared between workers. */
+  shadow_mode_scope?: string;
 }

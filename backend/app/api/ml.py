@@ -10,7 +10,7 @@ import joblib
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.auth import OperatorPrincipal, require_admin, require_operator
+from app.api.auth import OperatorPrincipal, require_admin, require_keyed_operator
 from app.ml.features import FEATURE_NAMES
 from app.ml.predictor import (
     PROMOTED_POINTER,
@@ -109,7 +109,7 @@ async def model_comparison() -> dict[str, Any]:
 @router.post("/promote")
 async def promote_model(
     req: PromotionRequest,
-    operator: OperatorPrincipal = Depends(require_operator),
+    operator: OperatorPrincipal = Depends(require_keyed_operator),
     x_control_plane_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     if req.force:

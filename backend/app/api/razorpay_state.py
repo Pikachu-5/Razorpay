@@ -5,6 +5,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import OperatorPrincipal, require_operator
+from app.api.policy import operating_mode_payload
 from app.core.config import get_settings
 from app.database.models import (
     InvoiceState,
@@ -33,10 +34,7 @@ async def state(
     invoices = (await session.execute(select(InvoiceState).order_by(desc(InvoiceState.updated_at)).limit(limit))).scalars().all()
     adjustments = (await session.execute(select(RevenueAdjustment).order_by(desc(RevenueAdjustment.occurred_at)).limit(limit))).scalars().all()
     return {
-        "operating_mode": {
-            "razorpay_mode": get_settings().razorpay_mode,
-            "shadow_mode": get_settings().shadow_mode,
-        },
+        "operating_mode": operating_mode_payload(),
         "orders": [{"id": x.id, "status": x.status, "attempts": x.attempts, "amount_minor": x.amount_minor, "amount_paid_minor": x.amount_paid_minor, "source": x.source} for x in orders],
         "payment_links": [{"id": x.id, "status": x.status, "amount_minor": x.amount_minor, "amount_paid_minor": x.amount_paid_minor, "short_url": x.short_url, "source": x.source} for x in links],
         "downtimes": [{"id": x.id, "status": x.status, "method": x.method, "severity": x.severity, "instrument": x.instrument, "source": x.source} for x in downtimes],

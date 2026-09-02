@@ -1,5 +1,11 @@
 # Walkthrough — Phase 7: Live A/B Experimentation Engine & Automated Promotion Gate
 
+> **This is a historical build log for one phase, not current-state documentation.**
+> The figures below are the run output from the day the phase landed. For what
+> the installed model actually scores now, read `models/artifacts/PROMOTED.json`
+> and the model card beside it, or the Evidence tab in the console. The README's
+> numbers are the current ones.
+
 We have completed **Phase 7: Live A/B Experimentation Engine & Automated Promotion Gate**, delivering counterfactual holdout evaluation, causal incremental revenue attribution ($+\Delta ₹$), and an automated model promotion comparator.
 
 ---
@@ -57,6 +63,17 @@ Economics Lift vs Baseline: Challenger: +193.5% | Champion: +0.0%
 [PROMOTED] recovery_model_v2.pkl is now the active model artifact!
 Updated C:\Codes\Razorpay\models\artifacts\PROMOTED.json
 ```
+
+**On that `+193.5%`:** it is the figure this phase produced against a weak
+baseline, and it did not survive scrutiny. The benchmark was later rebuilt to
+score every arm on realised outcomes *minus the recovery expected with no
+intervention at all*, and to compare against the strongest no-model policy
+(rank by amount) rather than a weak one — because expected value is dominated
+by ticket size, so beating random proves nothing. Under that benchmark the same
+artifact scores **+17.8%**, which is the number the README and `PROMOTED.json`
+carry. The per-action gate also tightened: `prompt_card_change` and
+`wait_for_native_retry` are now quarantined and fall back to the heuristic,
+where the table above shows all four passing.
 
 ### Frontend Production Build
 ```

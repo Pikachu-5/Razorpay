@@ -23,6 +23,8 @@ interface HeaderProps {
   connected: boolean;
   razorpayMode: string;
   shadowMode: boolean;
+  /** A declared public demo where operator actions need no key. Said plainly. */
+  openDemo?: boolean;
   /** Unresolved work, shown as the agent's current load. */
   queueDepth?: number | null;
   /** The expected-value floor every automated action has to clear. */
@@ -45,7 +47,7 @@ const tabs: Array<{ key: TabKey; label: string; hint: string }> = [
 ];
 
 export function Header({
-  activeTab, onSelectTab, connected, razorpayMode, shadowMode,
+  activeTab, onSelectTab, connected, razorpayMode, shadowMode, openDemo = false,
   queueDepth = null, gateLabel = null, contactCap = null, onOpenTour, onToggleExecution,
 }: HeaderProps) {
   const [confirmingExecution, setConfirmingExecution] = useState(false);
@@ -100,6 +102,14 @@ export function Header({
         </div>
 
         <div className="mode-row"><span>Environment</span><strong>Razorpay {razorpayMode}</strong></div>
+        {openDemo && (
+          <div className="mode-row mode-row-openaccess">
+            <span>Access</span>
+            <strong title="Operator actions on this install need no key. Forced model promotion still does.">
+              Open demo · no key
+            </strong>
+          </div>
+        )}
         <div className="mode-row">
           <span>Execution</span>
           <strong>{shadowMode ? "Observe only" : "Acting"}</strong>

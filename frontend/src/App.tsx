@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchOpportunityQueue, fetchPolicyConfig, fetchRazorpayState, fetchSummary, setShadowMode } from "./api/client";
 import { connectStream } from "./api/stream";
-import type { FeedItem, PolicyConfig, RazorpayState, Summary } from "./api/types";
+import type { FeedItem, OperatingMode, PolicyConfig, RazorpayState, Summary } from "./api/types";
 import { GuidedTour } from "./components/GuidedTour";
 import { Header, type TabKey } from "./components/Header";
 import { KpiStrip } from "./components/KpiStrip";
@@ -113,7 +113,10 @@ export default function App() {
     setConnected,
   ), [refresh]);
 
-  const mode = razorpayState?.operating_mode ?? { razorpay_mode: "test", shadow_mode: true };
+  // Typed as a partial OperatingMode so the optional posture fields stay
+  // readable before the first fetch lands, rather than narrowing to the literal.
+  const mode: Partial<OperatingMode> & { razorpay_mode: string; shadow_mode: boolean } =
+    razorpayState?.operating_mode ?? { razorpay_mode: "test", shadow_mode: true };
 
   const toggleExecutionMode = useCallback(async () => {
     const next = await setShadowMode(!mode.shadow_mode);
@@ -145,6 +148,7 @@ export default function App() {
         connected={connected}
         razorpayMode={mode.razorpay_mode}
         shadowMode={mode.shadow_mode}
+        openDemo={mode.control_plane_open_demo === true}
         queueDepth={queueDepth}
         gateLabel={policy ? inr(policy.min_ev_margin_minor + 1500) : null}
         contactCap={policy?.max_contact_attempts ?? null}
