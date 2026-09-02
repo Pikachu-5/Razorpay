@@ -286,7 +286,7 @@ export function GovernanceTab() {
                 ? "Active promoted model"
                 : promoting
                 ? "Promoting…"
-                : "Promote to shadow"}
+                : "Promote, observe only"}
             </button>
           </div>
         </div>

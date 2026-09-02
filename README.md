@@ -1,6 +1,8 @@
 # Revenue Recovery Control Plane
 
-A shadow-first Razorpay revenue-operations prototype that detects payment failures, identifies recoverable revenue, selects policy-gated interventions, and records every decision and outcome with explicit data provenance.
+**Live: [pikachu-5.github.io/razorpay](https://pikachu-5.github.io/razorpay/)**
+
+An observe-first Razorpay revenue-operations prototype that detects payment failures, identifies recoverable revenue, selects policy-gated interventions, and records every decision and outcome with explicit data provenance. Backend runs on Azure App Service + Postgres; frontend deploys to GitHub Pages, both via GitHub Actions on every push to `main`.
 
 ![The Razorpay Recover landing page](docs/img/01-landing.png)
 
@@ -8,7 +10,10 @@ A shadow-first Razorpay revenue-operations prototype that detects payment failur
 
 The landing page states the thesis, then the body pages through how it works,
 the failure mix, what it is worth, and the evidence. **See it recover a payment**
-opens the operator console.
+opens the operator console — which opens with a short guided tour on your first
+visit, pinning a small card next to whichever KPI, panel, or control it's
+explaining rather than covering the screen. Reopen it anytime from the **?**
+icon next to the logo.
 
 | | |
 | --- | --- |
@@ -35,7 +40,8 @@ dominated by ticket size, so sorting by amount already clears that bar. The
 number that matters is the one against the value-ranked policy.
 
 Regenerate these after a UI change with `npm run screenshots` in `frontend/`
-(needs the app running and a seeded baseline).
+— against a local dev server (needs it running and a seeded baseline), or
+directly against the live install with `npm run screenshots -- <url>`.
 
 ## Where the numbers come from
 
@@ -57,12 +63,26 @@ Two kinds of figure appear, and they are never mixed:
 - Expected value is measured against the do-nothing counterfactual: actions are ranked on the recovery they *add* over the rate at which these failures resolve on their own, net of what the action costs.
 - Order-centric recovery deduplication plus Razorpay Order, Payment Link, downtime, subscription, invoice, refund, and dispute lifecycles.
 - Webhook-first state with bounded Razorpay API reconciliation for duplicate, delayed, missed, or out-of-order delivery.
-- Shadow mode by default: customer-facing actions are recorded without sending links or notifications until explicitly enabled.
+- Observe-only by default (`SHADOW_MODE=true`): customer-facing actions are recorded without sending links or notifications until explicitly armed live — from the landing page's CTA, or from the **Execution** row in the console sidebar itself, both behind a preflight confirm.
 - Segment-level (method × bank) incident detection, simulation, response budgets, and dashboard visibility.
 - Deterministic 80/20 treatment/control holdout for counterfactual recovery measurement.
 - Synthetic data isolation from operational KPIs and experiments, plus a verified decision-time feature export for later real-data training.
 - Per-action ML quarantine with heuristic fallback, model cards, gated promotion, and a responsive evidence-first React operations console.
 - An operator preflight on every consequential action: batch incident response, model promotion, and manual re-decide each show scope, execution mode, and what cannot be undone before they run.
+
+## Deployment
+
+The live install runs the backend (FastAPI + Postgres) on Azure App Service
+and Azure Database for PostgreSQL, and the frontend on GitHub Pages. Both
+deploy from [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on every
+push to `main`, gated behind the backend and frontend test jobs passing
+first. Azure authentication uses OIDC federated credentials, not a stored
+secret. A second workflow, [`postgres-schedule.yml`](.github/workflows/postgres-schedule.yml),
+stops and starts the database on a cost-saving nightly schedule outside
+any period the install needs to stay reachable around the clock — mirrored
+client-side in [`maintenanceWindow.ts`](frontend/src/utils/maintenanceWindow.ts)
+so the frontend shows an honest "resting" message instead of failed requests
+while it's down.
 
 ## Start locally
 
@@ -135,11 +155,12 @@ the first thing a reviewer sees is an empty dashboard:
 .\.venv\Scripts\python scripts\seed_demo_baseline.py --days 30
 ```
 
-Seeded history is flagged `is_synthetic`, because it is invented. Operational
-KPIs and the causal experiment both exclude it by default, so a seeded install
-opens on zeros until you say otherwise — the live feed offers **Include demo
-traffic**, and the Evidence tab has the same switch. Both label the result as a
-demonstration of the measurement machinery rather than evidence of real lift.
+Seeded history is flagged `is_synthetic`. The live feed opens *including* it
+by default, exactly like the Evidence tab and the landing page's failure mix
+already do, so a seeded install never opens on a wall of zeros — flip **Show
+real payments only** any time to see just genuine Razorpay activity instead.
+Anything built from synthetic data is labelled a demonstration of the
+measurement machinery, never evidence of real lift.
 
 Then use [RUNBOOK.md](RUNBOOK.md) for the complete judge/demo flow. It includes a
 safe preflight, four failure scenarios, expected observable results, and Test

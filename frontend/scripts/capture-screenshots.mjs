@@ -48,6 +48,9 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+  // The guided tour auto-opens on a fresh browser's first console visit and
+  // would otherwise sit on top of every screenshot after 02-monitor.
+  await page.addInitScript(() => localStorage.setItem("recover_tour_seen", "1"));
 
   console.log(`Capturing from ${BASE_URL}`);
   // Not `networkidle`: the console holds an SSE stream open and polls on a
@@ -116,7 +119,7 @@ async function main() {
     if (values.length > 1) await candidates.selectOption(values[0]);
     await page.waitForTimeout(700);
   }
-  const promote = page.getByRole("button", { name: /^Promote to shadow$/ }).first();
+  const promote = page.getByRole("button", { name: /^Promote, observe only$/ }).first();
   if ((await promote.count()) && (await promote.isEnabled())) {
     await promote.scrollIntoViewIfNeeded();
     await promote.click();
