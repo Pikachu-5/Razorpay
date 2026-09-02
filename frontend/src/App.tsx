@@ -66,11 +66,11 @@ export default function App() {
   // never while someone is mid-read of a figure.
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
   const lastRefresh = useRef(0);
-  // A demo install has only seeded traffic. Default to the honest real-only
-  // view, then flip once we know real payments do not exist, so the console
-  // never opens on a wall of zeroes without saying why.
-  const [includeSynthetic, setIncludeSynthetic] = useState(false);
-  const [, setSyntheticDecided] = useState(false);
+  // Matches the failure-mix endpoint's own default: a demo install has only
+  // seeded traffic, so the console opens showing it rather than a wall of
+  // zeroes on a quiet day. The toggle still lets an operator switch to the
+  // honest real-only view any time.
+  const [includeSynthetic, setIncludeSynthetic] = useState(true);
   const [policy, setPolicy] = useState<PolicyConfig | null>(null);
   const [queueDepth, setQueueDepth] = useState<number | null>(null);
   const [maintenance, setMaintenance] = useState(() => getMaintenanceStatus());
@@ -88,22 +88,7 @@ export default function App() {
       fetchSummary(includeSynthetic),
       fetchRazorpayState(),
     ]);
-    if (summaryResult.status === "fulfilled") {
-      const next = summaryResult.value;
-      setSummary(next);
-      // Decide once, here rather than in an effect: this is the response that
-      // tells us whether real traffic exists, so it is the event that should
-      // change the view.
-      setSyntheticDecided((decided) => {
-        if (decided) return true;
-        const noRealTraffic =
-          next.events_received_today === 0 &&
-          next.open_opportunities === 0 &&
-          next.synthetic_payments_excluded > 0;
-        if (noRealTraffic) setIncludeSynthetic(true);
-        return true;
-      });
-    }
+    if (summaryResult.status === "fulfilled") setSummary(summaryResult.value);
     if (stateResult.status === "fulfilled") setRazorpayState(stateResult.value);
     const failures = [summaryResult, stateResult].filter((result) => result.status === "rejected");
     const failure = failures[0]?.reason;
