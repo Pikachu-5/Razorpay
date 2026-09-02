@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchOpportunityQueue, fetchPolicyConfig, fetchRazorpayState, fetchSummary } from "./api/client";
+import { fetchOpportunityQueue, fetchPolicyConfig, fetchRazorpayState, fetchSummary, setShadowMode } from "./api/client";
 import { connectStream } from "./api/stream";
 import type { FeedItem, PolicyConfig, RazorpayState, Summary } from "./api/types";
+import { GuidedTour } from "./components/GuidedTour";
 import { Header, type TabKey } from "./components/Header";
 import { KpiStrip } from "./components/KpiStrip";
 import { LandingPage } from "./components/LandingPage";
@@ -16,6 +17,7 @@ import { SimulationTab } from "./components/tabs/SimulationTab";
 import { Icon } from "./components/Icon";
 import { inr } from "./utils/format";
 import { getMaintenanceStatus } from "./utils/maintenanceWindow";
+import { hasTourBeenSeen } from "./utils/tourSteps";
 
 const POLL_MS = 8000;
 const REFRESH_THROTTLE_MS = 1500;
@@ -29,28 +31,9 @@ const pageCopy: Record<TabKey, { title: string; description: string }> = {
   governance: { title: "Evidence and policy", description: "Model eligibility, experiment quality, and execution guardrails." },
 };
 
-function TypewriterText({ text }: { text: string }) {
-  const [reduceMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const [displayed, setDisplayed] = useState(() => reduceMotion ? text : "");
-
-  useEffect(() => {
-    if (reduceMotion) return;
-
-    let cursor = 0;
-    const interval = window.setInterval(() => {
-      cursor += 1;
-      setDisplayed(text.slice(0, cursor));
-      if (cursor >= text.length) window.clearInterval(interval);
-    }, 18);
-
-    return () => window.clearInterval(interval);
-  }, [text, reduceMotion]);
-
-  return <span className="typewriter-copy">{displayed}<span className="typewriter-caret" aria-hidden="true" /></span>;
-}
-
 export default function App() {
   const [entered, setEntered] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [razorpayState, setRazorpayState] = useState<RazorpayState | null>(null);
@@ -131,12 +114,28 @@ export default function App() {
   ), [refresh]);
 
   const mode = razorpayState?.operating_mode ?? { razorpay_mode: "test", shadow_mode: true };
+
+  const toggleExecutionMode = useCallback(async () => {
+    const next = await setShadowMode(!mode.shadow_mode);
+    setRazorpayState((prev) => prev ? { ...prev, operating_mode: next } : prev);
+  }, [mode.shadow_mode]);
+
   const page = pageCopy[activeTab];
   const isMonitor = activeTab === "overview";
   const syncLabel = lastUpdated
     ? `Last sync ${lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
     : "Awaiting first sync";
-  if (!entered) return <LandingPage onStart={() => setEntered(true)} />;
+  const monthLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  if (!entered) {
+    return (
+      <LandingPage
+        onStart={() => {
+          setEntered(true);
+          if (!hasTourBeenSeen()) setTourOpen(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app-container">
@@ -149,35 +148,26 @@ export default function App() {
         queueDepth={queueDepth}
         gateLabel={policy ? inr(policy.min_ev_margin_minor + 1500) : null}
         contactCap={policy?.max_contact_attempts ?? null}
+        onToggleExecution={toggleExecutionMode}
+        onOpenTour={() => setTourOpen(true)}
       />
       <main className="main-content">
         {maintenance.isDown && <MaintenanceBanner message={maintenance.message} />}
-        {/* Monitor keeps the full masthead; every inner page compresses to a
-            single utility bar so the operator reaches data faster. */}
-        {maintenance.isDown ? null : isMonitor ? (
-          <>
-            <div className="workspace-bar">
-              <div className="breadcrumb"><span>Recovery operations</span><span className="breadcrumb-sep" aria-hidden="true" /><strong>{page.title}</strong></div>
-              <div className={`stream-status ${connected ? "stream-status-live" : "stream-status-reconnecting"}`}>
-                <span className="stream-status-dot" aria-hidden="true" />
-                <span>{connected ? "Live stream" : "Reconnecting"}</span>
-              </div>
+        {/* Every page shares the one masthead format -- title, a short
+            subtitle, live-stream status, refresh. */}
+        {!maintenance.isDown && (
+          <header className="feed-header">
+            <div>
+              <h2>{page.title}</h2>
+              <p className="feed-header-sub">{isMonitor ? `${monthLabel} · all instruments` : page.description}</p>
             </div>
-            <header className="page-header">
-              <div className="page-heading"><span className="page-kicker">Operator workspace</span><h2>{page.title}</h2><p>{page.description}</p><div className="typewriter-line"><TypewriterText key={activeTab} text="Signals arrive here as payment states change." /></div></div>
-              <div className="page-actions"><span className="last-updated">{syncLabel}</span><button type="button" className="btn btn-secondary" onClick={manualRefresh} disabled={isRefreshing}><Icon name="refresh" size={15} className={isRefreshing ? "is-spinning" : undefined} />{isRefreshing ? "Refreshing" : "Refresh data"}</button></div>
-            </header>
-          </>
-        ) : (
-          <header className="utility-bar">
-            <div className="breadcrumb"><span>Recovery operations</span><span className="breadcrumb-sep" aria-hidden="true" /><strong>{page.title}</strong></div>
-            <div className="utility-bar-actions">
+            <div className="feed-header-actions">
               <span className={`stream-status ${connected ? "stream-status-live" : "stream-status-reconnecting"}`}>
-                <span className="stream-status-dot" aria-hidden="true" />
+                <span className="stream-status-dot" aria-hidden="true"><i /><i /><i /></span>
                 <span>{connected ? "Live" : "Reconnecting"}</span>
               </span>
               <span className="last-updated">{syncLabel}</span>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={manualRefresh} disabled={isRefreshing}><Icon name="refresh" size={14} className={isRefreshing ? "is-spinning" : undefined} />{isRefreshing ? "Refreshing" : "Refresh"}</button>
+              <button type="button" className="btn btn-secondary" onClick={manualRefresh} disabled={isRefreshing}><Icon name="refresh" size={15} className={isRefreshing ? "is-spinning" : undefined} />{isRefreshing ? "Refreshing" : "Refresh data"}</button>
             </div>
           </header>
         )}
@@ -191,7 +181,7 @@ export default function App() {
           />
         )}
         <div className="tab-content-wrapper" hidden={maintenance.isDown}>
-          {activeTab === "overview" && <OverviewTab summary={summary} feed={feed} onClearFeed={() => setFeed([])} onSelectOpportunity={setSelectedOpportunityId} />}
+          {activeTab === "overview" && <OverviewTab feed={feed} onClearFeed={() => setFeed([])} onSelectOpportunity={setSelectedOpportunityId} />}
           {activeTab === "opportunities" && <OpportunitiesTab onSelectOpportunity={setSelectedOpportunityId} refreshSignal={refreshSignal} />}
           {activeTab === "razorpay" && <RazorpayTab state={razorpayState} onRefresh={refresh} />}
           {activeTab === "incidents" && <IncidentsTab onSelectOpportunity={setSelectedOpportunityId} refreshSignal={refreshSignal} />}
@@ -200,6 +190,7 @@ export default function App() {
         </div>
       </main>
       {selectedOpportunityId && <OpportunityModal opportunityId={selectedOpportunityId} onClose={() => setSelectedOpportunityId(null)} onDecided={refresh} />}
+      {tourOpen && <GuidedTour onClose={() => setTourOpen(false)} onNavigateTab={setActiveTab} />}
     </div>
   );
 }

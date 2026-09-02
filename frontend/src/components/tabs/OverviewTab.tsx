@@ -1,17 +1,15 @@
 import { useState } from "react";
 import { kindClass, kindLabel } from "../../api/stream";
-import type { FeedItem, Summary } from "../../api/types";
+import type { FeedItem } from "../../api/types";
 import { Icon } from "../Icon";
 
 interface OverviewTabProps {
-  summary: Summary | null;
   feed: FeedItem[];
   onClearFeed: () => void;
   onSelectOpportunity?: (id: string) => void;
 }
 
 export function OverviewTab({
-  summary,
   feed,
   onClearFeed,
   onSelectOpportunity,
@@ -32,10 +30,6 @@ export function OverviewTab({
     }
     return true;
   });
-
-  const totalPayments = summary
-    ? Object.values(summary.payments_by_status).reduce((a, b) => a + b, 0)
-    : 0;
 
   return (
     <div className="overview-layout">
@@ -119,65 +113,6 @@ export function OverviewTab({
           </ul>
         )}
       </section>
-
-      <aside className="side-column">
-        <section className="panel status-panel">
-          <div className="panel-header">
-            <div className="panel-title-line"><h3>Payments today</h3></div>
-            <span className="badge-count">{totalPayments} total</span>
-          </div>
-
-          {!summary || Object.keys(summary.payments_by_status).length === 0 ? (
-            <p className="empty">No payments recorded today.</p>
-          ) : (
-            <div className="status-bars">
-              {Object.entries(summary.payments_by_status).map(([status, count]) => {
-                const pct = totalPayments > 0 ? (count / totalPayments) * 100 : 0;
-                return (
-                  <div key={status} className="status-row">
-                    <div className="status-info">
-                      <span className={`status-pill st-${status}`}>{status.replace(/_/g, " ")}</span>
-                      <span className="status-count">
-                        <strong>{count}</strong> ({pct.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="progress-track">
-                      <div
-                        className={`progress-fill st-fill-${status}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="panel info-panel">
-          <div className="panel-title-line"><h3>How recovery works</h3></div>
-          <ol className="pipeline-steps">
-            <li>
-              <strong>Observe.</strong> Verify Razorpay webhooks and preserve their source.
-            </li>
-            <li>
-              <strong>Diagnose.</strong> Classify retryable, instrument, and funds failures.
-            </li>
-            <li>
-              <strong>Decide.</strong> Score only actions that passed offline quality gates.
-            </li>
-            <li>
-              <strong>Protect.</strong> Enforce value caps, contact budgets, and kill switches.
-            </li>
-            <li>
-              <strong>Act.</strong> In shadow mode, record the action without contacting customers.
-            </li>
-            <li>
-              <strong>Verify.</strong> Reconcile outcomes and separate natural recovery.
-            </li>
-          </ol>
-        </section>
-      </aside>
     </div>
   );
 }

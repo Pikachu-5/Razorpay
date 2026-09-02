@@ -123,16 +123,16 @@ export function IncidentsTab({ onSelectOpportunity, refreshSignal }: IncidentsTa
               label: "Execution mode",
               value: liveExecution
                 ? `LIVE — ${mode?.razorpay_mode ?? "test"} mode, customers will be contacted`
-                : "Shadow — actions are recorded, no customer is contacted",
+                : "Observe only — actions are recorded, no customer is contacted",
               emphasis: true,
             },
           ]}
-          confirmLabel={liveExecution ? "Contact customers" : "Run in shadow"}
+          confirmLabel={liveExecution ? "Contact customers" : "Run, observe only"}
           danger={liveExecution}
           safeNote={
             liveExecution
               ? null
-              : "Shadow mode is on, so this batch produces evidence only. Nothing is sent."
+              : "Observe-only mode is on, so this batch produces evidence only. Nothing is sent."
           }
           busy={respondingId === pendingRespond.id}
           onConfirm={() => handleRespond(pendingRespond.id)}

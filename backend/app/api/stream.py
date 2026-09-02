@@ -13,6 +13,10 @@ from app.events.bus import StreamEvent, bus
 router = APIRouter(tags=["stream"])
 
 PING_INTERVAL_SECONDS = 15
+# A fresh connection replays this many recent events before going live, so
+# the feed never opens blank for a visitor who wasn't watching when the
+# activity happened.
+BACKFILL_COUNT = 50
 
 
 async def event_frames(queue: asyncio.Queue[StreamEvent] | None = None):
@@ -38,9 +42,10 @@ async def event_frames(queue: asyncio.Queue[StreamEvent] | None = None):
 async def durable_event_frames(last_id: int | None = None):
     if last_id is None:
         async with session_factory() as session:
-            last_id = int(
+            max_id = int(
                 (await session.execute(select(func.coalesce(func.max(DurableEvent.id), 0)))).scalar_one()
             )
+        last_id = max(0, max_id - BACKFILL_COUNT)
     yield {"event": "connected", "data": "{}"}
     while True:
         async with session_factory() as session:

@@ -16,6 +16,7 @@ import type {
 } from "../api/types";
 import { inr } from "../utils/format";
 import { getMaintenanceStatus } from "../utils/maintenanceWindow";
+import { Icon } from "./Icon";
 import { MaintenanceBanner } from "./MaintenanceBanner";
 
 interface LandingPageProps {
@@ -85,21 +86,25 @@ const RAZORPAY_FIT = [
     title: "Payments webhooks",
     body: "payment.failed arrives signed and deduplicated. Fail-closed HMAC verification, no polling, no reconciliation job.",
     tone: "accent",
+    icon: "activity" as const,
   },
   {
     title: "Subscriptions & mandates",
     body: "Halted subscriptions get a card-update checkout; pending ones defer to Razorpay's own retry cycle rather than paying to duplicate it.",
     tone: "accent",
+    icon: "refresh" as const,
   },
   {
     title: "Payment Links",
     body: "The recovery link carries the original amount, expires in 48 hours, and excludes any method currently in reported downtime.",
     tone: "accent-2",
+    icon: "credit-card" as const,
   },
   {
     title: "Settlement & disputes",
     body: "Refunds and disputes are netted off recovered value, so the number finance sees is the one that survived.",
     tone: "accent-2",
+    icon: "shield" as const,
   },
 ] as const;
 
@@ -477,6 +482,10 @@ export function LandingPage({ onStart }: LandingPageProps) {
               <div className="lp-bar-v is-sage">
                 {experiment ? `${experiment.delta_conversion_rate >= 0 ? "+" : ""}${(experiment.delta_conversion_rate * 100).toFixed(1)}` : "—"}
               </div>
+              <div
+                className="lp-bar is-delta"
+                style={{ height: `${Math.max(18, Math.abs(experiment?.delta_conversion_rate ?? 0) * 460)}px` }}
+              />
               <div className="lp-bar-k">
                 points of measured lift<br />
                 {experiment
@@ -544,7 +553,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
         <div className="lp-fit">
           {RAZORPAY_FIT.map((f) => (
             <article key={f.title} className="card elev-sm lp-fit-card">
-              <div className={`lp-fit-mark is-${f.tone}`}>R</div>
+              <div className={`lp-fit-mark is-${f.tone}`}><Icon name={f.icon} size={18} /></div>
               <div className="card-title">{f.title}</div>
               <p className="card-body">{f.body}</p>
             </article>
@@ -557,7 +566,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
             <p className="lp-final-p">
               {liveExecution
                 ? "Customer-facing execution is armed. Every decision can reach a real customer."
-                : "Shadow mode is on. The pipeline runs end to end and records what it would have sent, without sending anything."}
+                : "Observe-only mode is on. The pipeline runs end to end and records what it would have sent, without sending anything."}
             </p>
             {error && <p className="lp-final-err">{error}</p>}
           </div>
@@ -571,7 +580,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
               onClick={toggleShadow}
               disabled={busy || !mode}
             >
-              {busy ? "Working…" : liveExecution ? "Return to shadow" : "Arm live execution"}
+              {busy ? "Working…" : liveExecution ? "Return to observe-only" : "Arm live execution"}
             </button>
           </div>
         </div>

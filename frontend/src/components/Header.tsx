@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { ConfirmAction } from "./ConfirmAction";
+import { Icon } from "./Icon";
+
 export type TabKey = "overview" | "opportunities" | "razorpay" | "incidents" | "simulation" | "governance";
 
 /**
@@ -24,6 +28,9 @@ interface HeaderProps {
   /** The expected-value floor every automated action has to clear. */
   gateLabel?: string | null;
   contactCap?: number | null;
+  onOpenTour: () => void;
+  /** Flips shadow mode. Consequential in the live direction, so callers get a preflight confirm. */
+  onToggleExecution: () => Promise<void>;
 }
 
 const tabs: Array<{ key: TabKey; label: string; hint: string }> = [
@@ -39,13 +46,29 @@ const tabs: Array<{ key: TabKey; label: string; hint: string }> = [
 
 export function Header({
   activeTab, onSelectTab, connected, razorpayMode, shadowMode,
-  queueDepth = null, gateLabel = null, contactCap = null,
+  queueDepth = null, gateLabel = null, contactCap = null, onOpenTour, onToggleExecution,
 }: HeaderProps) {
+  const [confirmingExecution, setConfirmingExecution] = useState(false);
+  const [switchingExecution, setSwitchingExecution] = useState(false);
+
+  async function confirmToggle() {
+    setSwitchingExecution(true);
+    try {
+      await onToggleExecution();
+      setConfirmingExecution(false);
+    } finally {
+      setSwitchingExecution(false);
+    }
+  }
+
   return (
     <aside className="sidebar">
       <div className="brand-group">
         <div className="brand-badge" aria-hidden="true"><PulseMark size={17} /></div>
         <div><h1>Recover</h1><span className="subtitle">Revenue control plane</span></div>
+        <button type="button" className="tour-reopen" onClick={onOpenTour} aria-label="Take the guided tour" title="Take the guided tour">
+          <Icon name="info" size={16} />
+        </button>
       </div>
 
       <nav className="nav-tabs" aria-label="Primary navigation">
@@ -77,12 +100,43 @@ export function Header({
         </div>
 
         <div className="mode-row"><span>Environment</span><strong>Razorpay {razorpayMode}</strong></div>
-        <div className="mode-row"><span>Execution</span><strong>{shadowMode ? "Shadow" : "Live"}</strong></div>
+        <div className="mode-row">
+          <span>Execution</span>
+          <strong>{shadowMode ? "Observe only" : "Acting"}</strong>
+          <button type="button" className="mode-switch" onClick={() => setConfirmingExecution(true)}>
+            {shadowMode ? "Arm live" : "Return to observe-only"}
+          </button>
+        </div>
         <div className="mode-row mode-row-connection">
-          <span className={`dot ${connected ? "dot-on" : "dot-off"}`} />
+          <span className={`dot ${connected ? "dot-on" : "dot-off"}`} aria-hidden="true"><i /><i /><i /></span>
           <span>{connected ? "Stream connected" : "Reconnecting"}</span>
         </div>
       </div>
+
+      {confirmingExecution && (
+        <ConfirmAction
+          title={shadowMode ? "Arm live execution?" : "Return to observe-only?"}
+          summary={
+            shadowMode
+              ? "The agent will start sending real payment links, reminders, and instrument-swap requests to customers."
+              : "The agent will go back to scoring and recording decisions without contacting any customer."
+          }
+          facts={[
+            { label: "Environment", value: `Razorpay ${razorpayMode}` },
+            {
+              label: "New execution mode",
+              value: shadowMode ? "LIVE — customers can be contacted" : "Observe only — nothing is sent",
+              emphasis: true,
+            },
+          ]}
+          confirmLabel={shadowMode ? "Arm live execution" : "Return to observe-only"}
+          danger={shadowMode}
+          safeNote={shadowMode ? null : "Nothing further is sent once this takes effect."}
+          busy={switchingExecution}
+          onConfirm={confirmToggle}
+          onCancel={() => setConfirmingExecution(false)}
+        />
+      )}
     </aside>
   );
 }

@@ -104,16 +104,16 @@ export function OpportunityModal({
               label: "Execution mode",
               value: liveExecution
                 ? `LIVE — ${mode?.razorpay_mode ?? "test"} mode, this can contact the customer`
-                : "Shadow — the decision is recorded, no customer is contacted",
+                : "Observe only — the decision is recorded, no customer is contacted",
               emphasis: true,
             },
           ]}
-          confirmLabel={liveExecution ? "Re-decide and contact" : "Re-decide in shadow"}
+          confirmLabel={liveExecution ? "Re-decide and contact" : "Re-decide, observe only"}
           danger={liveExecution}
           safeNote={
             liveExecution
               ? null
-              : "Shadow mode is on. This adds a decision to the audit trail and sends nothing."
+              : "Observe-only mode is on. This adds a decision to the audit trail and sends nothing."
           }
           busy={deciding}
           onConfirm={handleReDecide}
