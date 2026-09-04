@@ -20,7 +20,12 @@ from app.events.bus import StreamEvent, bus
 logger = logging.getLogger("processor")
 
 TREATMENT_SHARE_PCT = 80
-CONTACT_WINDOW_HOURS = 48
+# window_ends_at is stamped at insertion time, not at the event's own (possibly
+# backdated) timestamp, so this bounds how long a demo install stays "alive"
+# in the console after it was last seeded, not how long the fictional failure
+# is realistically contactable. Kept long enough that a public/judged demo
+# install doesn't sweep itself into closed_expired between visits.
+CONTACT_WINDOW_HOURS = 24 * 21
 CLAIM_TIMEOUT_SECONDS = 300
 
 PAYMENT_EVENTS = {
